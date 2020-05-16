@@ -1,0 +1,31 @@
+language: r
+
+sudo: true
+apt_packages: 
+ - libudunits2-dev
+ - libgdal-dev
+latex: false
+
+cache: packages
+
+r_packages:
+ - tidyverse
+ - scales
+ - ggpubr
+ - ggthemes
+ - rmarkdown
+ - sf
+ - rmdformats
+
+script:
+ - R -e  'rmarkdown::render("index.Rmd", output_file = "index.html")'
+
+deploy:
+  provider: pages
+  skip_cleanup: true
+  github_token: $GITHUB_TOKEN  # Set in the settings page of your repository, as a secure variable
+  keep_history: false
+  on:
+    branch: master
+    
+    
