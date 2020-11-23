@@ -1,0 +1,470 @@
+---
+title: "COVID-19 en Mexico: actualizado diariamente"
+author: "Adam Mahood"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: rmdformats::readthedown
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
+
+library(scales) # for nice-looking log scales in ggplot
+library(tidyverse)
+library(knitr) # for kable
+library(ggpubr) # for ggarrange
+library(sf)
+library(ggthemes) # for colorblind palette
+# library(lme4)
+
+```
+
+```{r data_input, include=F}
+# obtained from the same site
+entidades <- readxl::read_xlsx("diccionario_datos_covid19/Catalogos_0412.xlsx",
+                               sheet=8) %>%
+  mutate(ENTIDAD_FEDERATIVA = str_to_title(ENTIDAD_FEDERATIVA))
+lut_ent <-  entidades$ENTIDAD_FEDERATIVA  
+names(lut_ent) <- entidades$CLAVE_ENTIDAD
+
+location <- "http://datosabiertos.salud.gob.mx/gobmx/salud/datos_abiertos/datos_abiertos_covid19.zip"
+
+download.file(location, "data.zip")
+unzip("data.zip",exdir = "data")
+filename <- zip::zip_list("data.zip")$filename
+unlink("data.zip")
+
+out <- read_csv(file.path("data", filename))
+names(out) <- str_to_lower(names(out))
+out <- mutate(out, entidad_um = lut_ent[entidad_um]) 
+```
+
+```{r include = F}
+pais <- out %>%
+  group_by(resultado_lab) %>%
+  summarise(total = n())%>%
+  ungroup()
+
+pos <- out %>% 
+  filter(resultado_lab == 1) %>%
+  arrange(fecha_sintomas) %>%
+  group_by(fecha_sintomas, entidad_um) %>%
+  summarise(n_casos = n()) %>%
+  ungroup() %>%
+  group_by(entidad_um) %>%
+  mutate(cumsum_casos = cumsum(n_casos)) %>%
+  arrange(cumsum_casos)%>%
+  ungroup() 
+
+total<- pos %>%
+  na.omit() %>%
+  filter(cumsum_casos>9)%>% 
+  group_by(entidad_um) %>%
+  mutate(maxcasos = max(cumsum_casos)) %>%
+  ungroup()%>%
+  arrange(desc(maxcasos)) %>% # sort
+  mutate_at(vars(entidad_um), funs(factor(., levels=unique(.))))
+
+min_date<- min(total$fecha_sintomas)
+
+pruebas <- out %>% 
+  arrange(fecha_sintomas) %>%
+  group_by(fecha_sintomas, entidad_um) %>%
+  summarise(n_pruebas = n()) %>%
+  ungroup() %>%
+  group_by(entidad_um) %>%
+  mutate(cumsum_pruebas = cumsum(n_pruebas)) %>%
+  arrange(cumsum_pruebas)%>%
+  ungroup() %>%
+  filter(cumsum_pruebas>9,
+         fecha_sintomas>=min_date)%>% 
+  group_by(entidad_um) %>%
+  mutate(maxcasos = max(cumsum_pruebas)) %>%
+  ungroup()%>%
+  arrange(desc(maxcasos)) %>% # sort
+  mutate_at(vars(entidad_um), funs(factor(., levels=unique(.))))
+
+def <- out %>%
+  filter(resultado_lab == 1) %>%
+  filter(!is.na(fecha_def)) %>%
+  arrange(fecha_def) %>%
+  group_by(fecha_def, entidad_um) %>%
+  summarise(n_def = n()) %>%
+  ungroup() %>%
+  group_by(entidad_um) %>%
+  mutate(cumsum_def = cumsum(n_def)) %>%
+  arrange(cumsum_def)%>%
+  ungroup()  %>%
+  filter(cumsum_def>3)%>% 
+  group_by(entidad_um) %>%
+  mutate(maxdef = max(cumsum_def)) %>%
+  ungroup()%>%
+  arrange(desc(maxdef)) %>% # sort
+  mutate_at(vars(entidad_um), funs(factor(., levels=unique(.))))
+
+tot_def <-  out %>%
+  filter(resultado_lab == 1) %>%
+  filter(!is.na(fecha_def)) %>%
+  nrow()
+
+edads <- out %>%
+  filter(resultado_lab == 1) %>%
+  group_by(entidad_um) %>%
+  summarise(mean_edad = mean(edad) %>% round)
+
+casos_actuales <- pos%>%
+  group_by(entidad_um) %>%
+  summarise(casos_a = max(cumsum_casos)) %>%
+  ungroup() %>%
+  left_join(pruebas%>%
+              group_by(entidad_um) %>%
+              summarise(pruebas_a = max(cumsum_pruebas)) %>%
+              ungroup())%>%
+  left_join(def%>%
+              group_by(entidad_um) %>%
+              summarise(def_a = max(cumsum_def)) %>%
+              ungroup())%>%
+  left_join(edads) %>%
+  mutate(p_pos = round(casos_a/pruebas_a*100))%>% 
+  arrange(desc(casos_a)) %>% # sort
+  mutate_at(vars(entidad_um), funs(factor(., levels=unique(.)))) # convert to factor
+
+
+data_date<- max(out$fecha_actualizacion)
+
+positivos <- nrow(out%>%filter(resultado_lab == 1)) 
+negativos <- nrow(out%>%filter(resultado_lab == 2)) 
+pendientes <- nrow(out%>%filter(resultado_lab == 3)) 
+
+```
+
+## Todo el Pais
+
+### A partir de `r format(data_date, "%d %b %Y")`
+
+- `r formatC(nrow(out),big.mark = ",")` pruebas
+- `r formatC(pull(pais[1,2]), big.mark = ",")` casos
+- `r formatC(tot_def,big.mark = ",")` muertos
+
+last build: `r format(Sys.time(),"%d %b %Y")`
+                
+```{r}
+ggarrange(ggplot(out %>% filter(fecha_ingreso > as.Date("2019-01-01"))%>%
+         mutate(resultado_lab = ifelse(resultado_lab == 1, "Positivo",
+                                   ifelse(resultado_lab == 2, "Negativo", "Pendiente"))), 
+       aes(x=fecha_ingreso)) +
+  geom_bar(aes(fill = resultado_lab), position="stack",stat="count") +
+  geom_vline(xintercept = data_date-7, lty=2) +
+  geom_vline(xintercept = data_date-14, lty=3) +
+  # facet_wrap(~entidad_um, ncol=2, scales="free_y") +
+  theme_bw() +
+  # theme(legend.position = "none") +
+  scale_x_date(date_breaks = "3 weeks",
+               date_labels = "%b %d")+
+  scale_y_continuous(labels = scales::label_number_si())+
+  xlab("Fecha de Ingreso") +
+  ylab("Pruebas") +
+  scale_fill_colorblind()+
+  ggtitle(paste0("COVID-19 Preubas, Todo el Pais: ", 
+                 format(data_date, "%d %b %Y")), 
+          paste0("Lineas punteadas muestran 7 y 14 dias antes de la fecha de los datos")) +
+  ggsave("figures/mex_covid_pruebas_mex.png", height=5, width = 7), 
+          
+          ggplot(def, aes(x=fecha_def, y=n_def)) +
+  geom_bar(position="stack",stat="identity") +
+  geom_vline(xintercept = data_date-7, lty=2) +
+  geom_vline(xintercept = data_date-14, lty=3) +
+  # facet_wrap(~entidad_um, ncol=2, scales="free_y") +
+  theme_bw() +
+  # theme(legend.position = "none") +
+  scale_x_date(date_breaks = "3 weeks",
+               date_labels = "%b %d")+
+  scale_y_continuous(labels = scales::label_number_si())+
+  xlab("Fecha de Defuncion") +
+  ylab("# Defunciones") +
+  scale_fill_colorblind()+
+  ggtitle(paste0("COVID-19 Defunciones, Todo el Pais: ", 
+                 format(data_date, "%d %b %Y")), 
+          paste0("Lineas punteadas muestran 7 y 14 dias antes de la fecha de los datos")) +
+  ggsave("figures/mex_covid_defs_mex.png", height=5, width = 7), nrow=2, ncol=1)
+```
+
+### Fuenta de los datos
+
+http://datosabiertos.salud.gob.mx/gobmx/salud/datos_abiertos/datos_abiertos_covid19.zip
+
+### Mapas
+
+```{r include=F}
+shp<-st_read("estados.gpkg") %>%
+  mutate(entidad_um = str_to_title(NOM_ENT))%>%
+  left_join(casos_actuales)
+```
+
+```{r echo=F,fig.height=8}
+ggarrange(
+shp %>%
+  mutate(casos_cat = cut(casos_a, breaks = c(10,100,300,1000,3000,10000,30000,
+                                             100000, 300000, 1000000),
+                         labels = c("10-100","100-300","300-1,000",
+                                    "1,000-3,000","3,000-10,000", "10,000-30,000",
+                                    "30,000-100,000", "100,000-300,000", "300,000-1,000,000"))) %>%
+  ggplot(aes(fill=casos_cat)) +
+  geom_sf() +
+  scale_fill_brewer(palette="Spectral",direction = -1, name = "Casos\nConfirmados") +
+  theme_void() +
+  theme(legend.position = c(.95,.95),
+        legend.justification = c(1,1),
+        plot.background = element_rect(fill="transparent", color="black"))
+,
+shp%>%
+  mutate(casos_cat = cut(pruebas_a, breaks = c(10,100,300,1000,3000,10000,30000,
+                                               100000,300000, 1000000),
+                         labels = c("10-100","100-300","300-1,000",
+                                    "1,000-3,000","3,000-10,000", "10,000-30,000",
+                                    "30,000-100,000", "100,000-300,000", "300,000-1,000,000"))) %>%
+  ggplot(aes(fill=casos_cat)) +
+  geom_sf() +
+  scale_fill_brewer(palette="Spectral",direction = -1, name = "Pruebas") +
+  theme_void() +
+  theme(legend.position = c(.95,.95),
+        legend.justification = c(1,1),
+        plot.background = element_rect(fill="transparent", color="black"))
+,nrow=2) +
+  ggsave("figures/maps.png", height = 8, width=6)
+
+```
+
+## Tendencias por estado
+
+### Casos diarios
+
+```{r echo = F, fig.height = 22}
+
+ggplot(out %>% filter(fecha_ingreso > as.Date("2019-01-01"))%>%
+         mutate(resultado_lab = ifelse(resultado_lab == 1, "Positivo",
+                                   ifelse(resultado_lab == 2, "Negativo", "Pendiente"))), 
+       aes(x=fecha_ingreso)) +
+  geom_bar(aes(fill = resultado_lab), position="stack",stat="count") +
+  geom_vline(xintercept = data_date-7, lty=2) +
+  geom_vline(xintercept = data_date-14, lty=3) +
+  facet_wrap(~entidad_um, ncol=2, scales="free_y") +
+  theme_bw() +
+  theme(legend.position = "none")+
+  scale_x_date(date_breaks = "2 months",
+               date_labels = "%b %d")+
+  scale_y_continuous(labels = scales::label_number_si())+
+  xlab("Fecha de Ingreso") +
+  ylab("Pruebas") +
+  scale_fill_colorblind()+
+  ggtitle(paste0("COVID-19 Preubas, Por Estado: ", 
+                 format(data_date, "%d %b %Y")), 
+          paste0("Lineas punteadas son 7 y 14 dias antes de la fecha de los datos\nNegro = Negativo, Azul = Positivo, Amarillo = Pendiente")) +
+  ggsave("figures/mex_covid_pruebas_estado.png", height=20, width = 8.5)
+
+```
+
+### Casos cumulativos
+
+```{r echo=F, fig.height = 11}
+ ggplot(total, aes(x=fecha_sintomas, y=cumsum_casos)) +
+  geom_line(data = pruebas, aes(y=n_pruebas), color = "grey")+
+  geom_line(aes(color = entidad_um))+
+  geom_line(data = def, aes(x=fecha_def,y=cumsum_def), color = "black")+
+  geom_vline(xintercept = data_date-7, lty=2)+
+  geom_vline(xintercept = data_date-14, lty=3)+
+  facet_wrap(~entidad_um, ncol=4) +
+  theme_bw() +
+  theme(legend.position = "none")+
+  scale_x_date(date_breaks = "2 months",
+               date_labels = "%b %d")+
+  scale_y_log10(labels = scales::label_number_si(), limits=c(10,NA))+
+  xlab("Fecha de Inicio Sintomas") +
+  ylab("Casos Notificados Cumulativos") +
+  ggtitle(paste0("COVID-19 casos por estado, ", 
+                 format(data_date, "%d %b %Y")), 
+          paste0("Lineas punteadas muestran 7 y 14 dias antes de la fecha de los datos\n", 
+                 "Lineas grises son pruebas diarias, lineas negras son muertos cumulativos.")) +
+  ggsave("figures/mex_covid_log.png", height=11, width = 8.5)
+
+```
+
+### Defunciones
+
+```{r echo=F, fig.height = 22}
+ ggplot(def, aes(x=fecha_def, y=n_def)) +
+  geom_bar(position="stack",stat="identity") +
+  geom_vline(xintercept = data_date-7, lty=2) +
+  geom_vline(xintercept = data_date-14, lty=3) +
+  facet_wrap(~entidad_um, ncol=2, scales="free_y") +
+  theme_bw() +
+  scale_x_date(date_breaks = "3 weeks",
+               date_labels = "%b %d")+
+  scale_y_continuous(labels = scales::label_number_si())+
+  xlab("Fecha de Defuncion") +
+  ylab("# Defunciones") +
+  scale_fill_colorblind()+
+  ggtitle(paste0("COVID-19 Defunciones, Todo el Pais: ", 
+                 format(data_date, "%d %b %Y")), 
+          paste0("Lineas punteadas muestran 7 y 14 dias antes de la fecha de los datos")) +
+  ggsave("figures/mex_covid_defs_estado.png", height=5, width = 7)
+
+```
+
+<!-- ## Estadisticos basicos -->
+
+```{r include=F}
+# d <- out %>%
+#   mutate(intubado = ifelse(intubado == 1, "si", ifelse(intubado == 2, "no", NA)),
+#          muerto = ifelse(!is.na(fecha_def), "muerto", "vivo"),
+#          neumonia = ifelse(neumonia == 1, "si", ifelse(neumonia == 2, "no", NA)), 
+#          nacionalidad = ifelse(nacionalidad==1, "Mexicano", "Extranjero"),
+#          embarazo = ifelse(embarazo == 1, "si", ifelse(embarazo == 2, "no", NA)),
+#          habla_lengua_indig = ifelse(habla_lengua_indig==1,"si", "no"),
+#          diabetes=ifelse(diabetes==1,"si", "no"),
+#          epoc = ifelse(epoc==1,"si", "no"),
+#          sexo = ifelse(sexo == 1, "mujer", "hombre"),
+#          asma = ifelse(asma==1, "si", "no"),
+#          inmusupr = ifelse(inmusupr==1, "si", "no"),
+#          hipertension = ifelse(hipertension==1, "si", "no"),
+#          otra_com = ifelse(otra_com==1, "si", "no"),
+#          cardiovascular = ifelse(cardiovascular==1, "si", "no"),
+#          obesidad = ifelse(obesidad==1, "si", "no"),
+#          renal_cronica = ifelse(renal_cronica==1, "si", "no"),
+#          tabaquismo = ifelse(tabaquismo==1, "si", "no"),
+#          otro_caso = ifelse(otro_caso==1, "si", "no"),
+#          migrante = ifelse(migrante==1, "si", "no"),
+#          uci = ifelse(uci==1, "si", "no"),
+#          resultado_lab = ifelse(resultado_lab ==1, "confirmado", 
+#                             ifelse(resultado_lab==2, "negativo", "pendiente")))
+```
+
+<!-- ### Factores de riesgo -->
+
+<!-- Problemas technicos :( -->
+
+```{r results='asis'}
+# mod <- d %>%
+#   filter(resultado_lab == "confirmado") %>%
+#   mutate(muerto = ifelse(muerto =="muerto", 1, 0)) %>%
+# glm(muerto~edad + diabetes + epoc + asma +inmusupr + hipertension + otra_com + 
+      # cardiovascular + obesidad + renal_cronica + tabaquismo + sexo, data=., family="binomial")
+```
+
+```{r}
+# mod_df <- exp(cbind(OR = coef(mod), confint(mod))) %>%
+#   as_tibble(rownames = "variable") %>%
+#   mutate(variable = ifelse(str_ends(variable,"si"),
+#                            str_sub(variable, 1,nchar(variable)-2),
+#                            variable))%>%
+#     arrange((OR)) %>%
+#   mutate(variable_f = factor(variable, levels = .$variable))
+# 
+# ggplot(mod_df) + 
+#   theme_pubclean() +
+#   geom_vline(xintercept = 1,
+#              alpha = 0.7) +
+#   geom_linerange(aes(y = variable_f, xmin = `2.5 %`, xmax = `97.5 %`), 
+#                  lwd=1, color="grey") +
+#   geom_point(aes(x=OR, y=variable_f))+
+#   xlab("Odds Ratio Estimates, 95% Confidence intervals") +
+#   ylab("Predictor") +
+#   ggtitle("Morir")
+
+```
+
+<!-- ### Edad -->
+
+```{r}
+# newdata <- expand.grid(edad=0:100,
+#                        diabetes="no",
+#                        hipertension="no",
+#                        epoc="no",
+#                        asma="no",
+#                        inmusupr="no",
+#                        sexo = c("hombre", "mujer"),
+#                        otra_com="no",
+#                        cardiovascular="no",
+#                        obesidad="no",
+#                        renal_cronica="no",
+#                        tabaquismo="no")
+# preds<- predict(mod,newdata = newdata,type = "response", se.fit = T) %>%
+#   as.data.frame() %>%
+#   cbind(newdata)
+# 
+# 
+# ggplot(preds, aes(x=edad, y=muerto, color = sexo)) +
+#   geom_line(aes(y=fit)) +
+#   geom_line(aes(y=fit-(se.fit*1.96)),lty=2) +
+#   geom_line(aes(y=fit+(se.fit*1.96)),lty=2) +
+#   ylab("Probabilidad de morir") +
+#   xlab("Edad")+
+#   ggtitle("Por una persona saludable") +
+#   theme_classic() +
+#   theme(legend.position = c(0,1),
+#         legend.justification = c(0,1),
+#         legend.title=element_blank())#,
+
+```
+
+<!-- ### Cuentas -->
+
+```{r include=F}
+# d_pos<-d %>%
+#   filter(resultado_lab == "confirmado") %>%
+#   pivot_longer(cols = c(intubado,neumonia,nacionalidad,embarazo,habla_lengua_indig,
+#   diabetes,epoc,asma,inmusupr,hipertension,otra_com,cardiovascular,obesidad,renal_cronica,tabaquismo,otro_caso,migrante,uci,muerto),
+#               names_to = "variable", values_to = "value")
+# 
+# d_def<-d %>%
+#   filter(muerto == "muerto") %>%
+#   pivot_longer(cols = c(intubado,neumonia,nacionalidad,embarazo,habla_lengua_indig,
+#   diabetes,epoc,asma,inmusupr,hipertension,otra_com,cardiovascular,obesidad,renal_cronica,tabaquismo,otro_caso,migrante,uci),
+#               names_to = "variable", values_to = "value")
+
+```
+
+```{r}
+# ggplot(d_pos,aes(x=value)) +
+#   geom_bar(stat="count") +
+#   facet_wrap(~variable, scales="free") +
+#   ggtitle("De los Casos Confirmados") +
+#   theme_classic()
+# 
+# 
+# ggplot(d_def,aes(x=value)) +
+#   geom_bar(stat="count") +
+#   facet_wrap(~variable, scales="free") +
+#   ggtitle("De los Casos Muertos")+
+#   theme_classic()
+```
+
+<!-- ### Muertos cumulativos -->
+
+```{r echo=F, fig.height = 11}
+# ggplot(def, aes(x=fecha_def, y=cumsum_def)) +
+#   geom_line(aes(color = entidad_um))+
+#   facet_wrap(~entidad_um, ncol=4) +
+#   theme_bw() +
+#   theme(legend.position = "none")+
+#   scale_x_date(date_breaks = "2 months",
+#                date_labels = "%b %d")+
+#   scale_y_log10(labels = scales::label_number_si())+
+#   xlab("Fecha de Muerto") +
+#   ylab("Muertos Notificados Cumulativos") +
+#   ggtitle(paste0("COVID-19 muertos por estado, ", 
+#                  format(data_date, "%d %b %Y"))) +
+#   ggsave("figures/mex_covid_muertos_log.png", height=11, width = 8.5)
+
+```
+
+### Casos actuales
+
+```{r echo=FALSE}
+casos_actuales %>%
+  dplyr::select(Entidad = entidad_um, `Casos Confirmados`= casos_a, 
+                Pruebas = pruebas_a, `Porciento Positivos` = p_pos, `Muertos` = def_a)%>%
+  mutate(`Mortandad %`= round(Muertos/`Casos Confirmados`*100))%>%
+  arrange(desc(`Casos Confirmados`))%>%
+  kable
+
+```
