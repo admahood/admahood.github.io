@@ -22,8 +22,10 @@ library(ggthemes) # for colorblind palette
 # obtained from the same site
 entidades <- readxl::read_xlsx("diccionario_datos_covid19/Catalogos_0412.xlsx",
                                sheet=8) %>%
-  mutate(ENTIDAD_FEDERATIVA = str_to_title(ENTIDAD_FEDERATIVA))
-lut_ent <-  entidades$ENTIDAD_FEDERATIVA  
+  mutate(ENTIDAD_FEDERATIVA = str_to_title(ENTIDAD_FEDERATIVA) %>%
+           str_replace_all("De", "de") %>%
+           str_replace_all("La", "la"))
+lut_ent <-  entidades$ENTIDAD_FEDERATIVA 
 names(lut_ent) <- entidades$CLAVE_ENTIDAD
 
 location <- "http://datosabiertos.salud.gob.mx/gobmx/salud/datos_abiertos/datos_abiertos_covid19.zip"
