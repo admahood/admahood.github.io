@@ -284,28 +284,28 @@ ggplot(out %>% filter(fecha_ingreso > as.Date("2019-01-01"))%>%
 
 ```
 
-### Casos cumulativos
+<!-- ### Casos cumulativos -->
 
 ```{r echo=F, fig.height = 11}
- ggplot(total, aes(x=fecha_sintomas, y=cumsum_casos)) +
-  geom_line(data = pruebas, aes(y=n_pruebas), color = "grey")+
-  geom_line(aes(color = entidad_um))+
-  geom_line(data = def, aes(x=fecha_def,y=cumsum_def), color = "black")+
-  geom_vline(xintercept = data_date-7, lty=2)+
-  geom_vline(xintercept = data_date-14, lty=3)+
-  facet_wrap(~entidad_um, ncol=4) +
-  theme_bw() +
-  theme(legend.position = "none")+
-  scale_x_date(date_breaks = "2 months",
-               date_labels = "%b %d")+
-  scale_y_log10(labels = scales::label_number_si(), limits=c(10,NA))+
-  xlab("Fecha de Inicio Sintomas") +
-  ylab("Casos Notificados Cumulativos") +
-  ggtitle(paste0("COVID-19 casos por estado, ", 
-                 format(data_date, "%d %b %Y")), 
-          paste0("Lineas punteadas muestran 7 y 14 dias antes de la fecha de los datos\n", 
-                 "Lineas grises son pruebas diarias, lineas negras son muertos cumulativos.")) +
-  ggsave("figures/mex_covid_log.png", height=11, width = 8.5)
+ # ggplot(total, aes(x=fecha_sintomas, y=cumsum_casos)) +
+ #  geom_line(data = pruebas, aes(y=n_pruebas), color = "grey")+
+ #  geom_line(aes(color = entidad_um))+
+ #  geom_line(data = def, aes(x=fecha_def,y=cumsum_def), color = "black")+
+ #  geom_vline(xintercept = data_date-7, lty=2)+
+ #  geom_vline(xintercept = data_date-14, lty=3)+
+ #  facet_wrap(~entidad_um, ncol=4) +
+ #  theme_bw() +
+ #  theme(legend.position = "none")+
+ #  scale_x_date(date_breaks = "2 months",
+ #               date_labels = "%b %d")+
+ #  scale_y_log10(labels = scales::label_number_si(), limits=c(10,NA))+
+ #  xlab("Fecha de Inicio Sintomas") +
+ #  ylab("Casos Notificados Cumulativos") +
+ #  ggtitle(paste0("COVID-19 casos por estado, ", 
+ #                 format(data_date, "%d %b %Y")), 
+ #          paste0("Lineas punteadas muestran 7 y 14 dias antes de la fecha de los datos\n", 
+ #                 "Lineas grises son pruebas diarias, lineas negras son muertos cumulativos.")) +
+ #  ggsave("figures/mex_covid_log.png", height=11, width = 8.5)
 
 ```
 
