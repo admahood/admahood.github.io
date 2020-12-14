@@ -31,6 +31,7 @@ names(lut_ent) <- entidades$CLAVE_ENTIDAD
 
 location <- "http://datosabiertos.salud.gob.mx/gobmx/salud/datos_abiertos/datos_abiertos_covid19.zip"
 
+# code to ensure we don't spend time downloading the same thing repeatedly
 fs<- RCurl::getURL(location, nobody=1L, header=1L) %>% strsplit("\r\n")
 fs_remote<- fs[[1]][2] %>% str_extract("\\d+") %>% as.numeric
 fs_local <- file.size("data.zip")
@@ -39,9 +40,10 @@ download.file(location, "data.zip")}
 unzip("data.zip",exdir = "data")
 filename <- zip::zip_list("data.zip")$filename
 
-out <- read_csv(file.path("data", filename))
-names(out) <- str_to_lower(names(out))
-out <- mutate(out, entidad_um = lut_ent[entidad_um]) 
+out <- read_csv(file.path("data", filename))%>%
+  rename_all(str_to_lower) %>%
+  mutate(entidad_um = lut_ent[entidad_um]) %>%
+  filter(resultado_lab < 4)
 ```
 
 ```{r include = F}
@@ -60,6 +62,17 @@ pos <- out %>%
   mutate(cumsum_casos = cumsum(n_casos)) %>%
   arrange(cumsum_casos)%>%
   ungroup() 
+
+casosrecien <- out %>% 
+  mutate(fecha_sintomas = as.Date(fecha_sintomas)) %>%
+  filter(fecha_sintomas >= max(fecha_sintomas)-14,
+         resultado_lab < 3) %>%
+  mutate(resultado_lab = ifelse(resultado_lab == 2, 0,1)) %>%
+  group_by(entidad_um) %>%
+  summarise(n = n(),
+            casos_confirmados = sum(resultado_lab),
+            ppos = round(sum(resultado_lab)/n*100)) %>%
+  ungroup()
 
 total<- pos %>%
   na.omit() %>%
@@ -469,10 +482,12 @@ ggplot(out %>% filter(fecha_ingreso > as.Date("2019-01-01"))%>%
 
 ```{r echo=FALSE}
 casos_actuales %>%
-  dplyr::select(Entidad = entidad_um, `Casos Confirmados`= casos_a, 
-                Pruebas = pruebas_a, `Porciento Positivos` = p_pos, `Muertos` = def_a)%>%
-  mutate(`Mortandad %`= round(Muertos/`Casos Confirmados`*100))%>%
-  arrange(desc(`Casos Confirmados`))%>%
+  left_join(casosrecien) %>%
+  dplyr::select(Entidad = entidad_um, `Casos Confirmados (Total)`= casos_a, 
+                `Casos Confirmados (2 Semanas)` = casos_confirmados,
+                Pruebas = pruebas_a, `Porciento Positivos (2 Semanas)` = ppos, 
+                `Muertos` = def_a)%>%
+  arrange(desc(`Casos Confirmados (2 Semanas)`))%>%
   kable
 
 ```
