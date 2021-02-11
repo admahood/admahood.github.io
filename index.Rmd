@@ -177,7 +177,7 @@ ggarrange(ggplot(out %>% filter(fecha_ingreso > as.Date("2019-01-01"))%>%
   # facet_wrap(~entidad_um, ncol=2, scales="free_y") +
   theme_bw() +
   # theme(legend.position = "none") +
-  scale_x_date(date_breaks = "3 weeks",
+  scale_x_date(date_breaks = "2 months",
                date_labels = "%b %d")+
   scale_y_continuous(labels = scales::label_number_si())+
   xlab("Fecha de Ingreso") +
@@ -195,7 +195,7 @@ ggarrange(ggplot(out %>% filter(fecha_ingreso > as.Date("2019-01-01"))%>%
   # facet_wrap(~entidad_um, ncol=2, scales="free_y") +
   theme_bw() +
   # theme(legend.position = "none") +
-  scale_x_date(date_breaks = "3 weeks",
+  scale_x_date(date_breaks = "2 months",
                date_labels = "%b %d")+
   scale_y_continuous(labels = scales::label_number_si())+
   xlab("Fecha de Defuncion") +
@@ -204,7 +204,7 @@ ggarrange(ggplot(out %>% filter(fecha_ingreso > as.Date("2019-01-01"))%>%
   ggtitle(paste0("COVID-19 Defunciones, Todo el Pais: ", 
                  format(data_date, "%d %b %Y")), 
           paste0("Lineas punteadas muestran 7 y 14 dias antes de la fecha de los datos")) +
-  ggsave("figures/mex_covid_defs_mex.png", height=5, width = 7), nrow=2, ncol=1)
+  ggsave("figures/mex_covid_defs_mex.png", height=5, width = 7), nrow=2, ncol=1, common.legend=T)
 ```
 
 ### Fuenta de los datos
