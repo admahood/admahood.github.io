@@ -2,6 +2,16 @@
 title: "Adam Mahood's Website"
 ---
 
-At some point this will be a good website
+At some point this will be a nice-looking website. Until then, Here's a picture of a car.
 
-apparently typing ```{r} rmarkdown::render_site()``` renders the site
+
+```{r eval=F, include=F}
+# this renders the site into the _site directory, which github pages doesn't like
+# so I'm currently just copying everything back into the base directory
+rmarkdown::render_site()
+
+```
+
+```{r show-image-local,echo=FALSE,fig.align='center',out.width='95%'}
+knitr::include_graphics("images/oldcar.jpg")
+```
