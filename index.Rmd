@@ -2,7 +2,7 @@
 title: "Adam Mahood's Website"
 ---
 
-At some point this will be a nice-looking website. Until then, Here's a picture of a car.
+Dryland ecology is full of great views. Here is a picture of a car.
 
 
 ```{r eval=F, include=F}
