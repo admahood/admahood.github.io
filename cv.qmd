@@ -1,0 +1,7 @@
+---
+title: "C.V."
+---
+
+```{r fig.width=10, fig.height=20}
+knitr::include_url("https://docs.google.com/document/d/16tGokhu0QttQQx4NTtiSMnMjFoHMbvcIu2cVY91N9EY/edit?usp=sharing")
+```
