@@ -1,0 +1,28 @@
+project:
+  type: website
+  output-dir: docs
+
+
+website:
+  title: "admahood.github.io"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - about.qmd
+      - research.qmd
+      - cv.qmd
+    right:
+      - text: "admahood@gmail.com"
+        href: mailto:<admahood@gmail.com>
+      - text: "GitHub"
+        href: http://github.com/admahood/
+
+format:
+  html:
+    theme: darkly 
+    css: styles.css
+    toc: true
+
+editor: visual
+
