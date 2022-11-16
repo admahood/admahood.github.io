@@ -25,6 +25,6 @@
     "href": "cv.html",
     "title": "C.V.",
     "section": "",
-    "text": "knitr::include_url(\"https://docs.google.com/document/d/16tGokhu0QttQQx4NTtiSMnMjFoHMbvcIu2cVY91N9EY\")"
+    "text": "knitr::include_url(\"https://docs.google.com/document/d/16tGokhu0QttQQx4NTtiSMnMjFoHMbvcIu2cVY91N9EY/edit?usp=sharing\")"
   }
 ]
