@@ -7,3 +7,5 @@ This is a not my car.
 ```{r show-image-local,echo=FALSE,fig.align='center',out.width='95%'}
 knitr::include_graphics("images/oldcar.jpg")
 ```
+
+Last update `r Sys.time()`
